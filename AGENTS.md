@@ -21,13 +21,12 @@ python3 scripts/scan.py crypto BTC,ETH,SOL 15m
 ```
 6 digits (± sh/sz/bj) → A股, else → crypto. Windows: `python`. Blocked → `HTTPS_PROXY=...`.
 
-## The ONE hard rule: forced output + proof-of-run
-`analyze.py` prints a 报告块 between `╔═══╗` and `╚═══╝` ending with a **`🔒校验`
-line** (real price/OI/funding/score + `sig` hash). **Output the whole block verbatim**
-— do NOT compress the 面板表 into prose, drop rows, or omit 合并结论/建议. **The 🔒校验
-line is MANDATORY proof-of-run — you can't fabricate it without running; a report
-missing it = FAKE, never deliver one.** (Full `----- JSON -----` is optional to paste.)
-Never invent a number; failed sources → say so.
+## The ONE hard rule: forced, verbatim output
+`analyze.py` prints a 报告块 between `╔═══╗` and `╚═══╝`. **Output the whole block
+verbatim** — do NOT compress the 面板表 into prose, drop rows, or omit 合并结论/建议.
+Never invent a number; failed sources → say so. (Text can't self-certify — a proof
+anchor can be forwarded fabricated too; real trust = the harness actually ran the
+tool + a human spot-check against reality.)
 
 ## Reading the numbers
 - **加密**: OI×价(涨+仓增续涨/跌+仓增续跌/涨+仓减轧空) · 大户持仓比>1.2且升=主力加多 ·

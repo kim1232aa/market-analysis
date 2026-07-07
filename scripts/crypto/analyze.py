@@ -8,7 +8,7 @@ funding, and prints a ready-to-paste 报告块. NEVER fabricates: failed sources
 Usage:  python3 analyze.py [SYMBOL] [BAR]      e.g.  python3 analyze.py ETH 5m
 Env:    HTTPS_PROXY/HTTP_PROXY respected.  No third-party deps.
 """
-import sys, json, hashlib
+import sys, json
 import perp_core as pc
 
 HELP = """crypto-perp-analysis / analyze.py — 单币永续多空分析(实时真实数据)
@@ -168,11 +168,8 @@ if levels:
             print(f"- **注意**：{zhuli}而散户拥挤多 → 主力散户背离,偏空,警惕多头踩踏")
         elif gl and tp and tp["ratio"] > 1.1 and gl["ratio"] > 1.3:
             print(f"- **注意**：{zhuli}但散户也拥挤多 → 跟主力做多,同时把散户止损位当踩踏触发,两手准备")
-if price:
-    _sig = hashlib.sha1(f"{SYM}{BAR}{price['last']}{deriv.get('oi_now')}{deriv.get('funding_rate_8h')}{total}".encode()).hexdigest()[:8]
-    print(f"\n🔒校验 {SYM}·{BAR} last={g(price['last'])} oi={g(deriv.get('oi_now'),0)} fund={deriv.get('funding_rate_8h')} 评分={total} sig={_sig}")
-print("⚠️ 非投资建议·5M高噪音·务必带止损控杠杆。位与R:R为结构自动测算(R:R>1:6多因近端阻力太贴,实盘目标宜保守)。")
-print("╚═══ 报告块结束 · 须完整输出(面板表/合并结论/建议/🔒校验行不可删) · 🔒校验行=跑脚本的证据,缺=假报告(JSON段可不贴) ═══╝")
+print("\n⚠️ 非投资建议·5M高噪音·务必带止损控杠杆。位与R:R为结构自动测算(R:R>1:6多因近端阻力太贴,实盘目标宜保守)。")
+print("╚═══ 报告块结束 · 以上须完整输出,尤其【面板表】与【合并结论/建议】不可省略 ═══╝")
 
 if errors:
     print("\n!!! 部分数据源失败(不要编造这些数字,如实告知) !!!")

@@ -27,13 +27,11 @@ every number comes from the fetch script; failed sources are reported, never inv
    `HTTPS_PROXY`. Just run the script.
 1. **NEVER write a number the script didn't output.** If `errors[]` is non-empty,
    say which source failed. Scripts auto-fall back across sources; don't fabricate.
-2. **FORCED OUTPUT + PROOF-OF-RUN.** The whole 报告块 (between `╔═══╗` and `╚═══╝`)
-   MUST appear verbatim — do NOT compress the 面板表 into prose, drop rows, or omit
-   合并结论/建议. It ends with a **`🔒校验` line** (real price/OI/funding/score + a
-   `sig` hash) you CANNOT fabricate without running. **That 🔒校验 line is MANDATORY —
-   a report missing it = you did NOT run the script = FABRICATED; never deliver one,
-   run the script instead.** (The full `----- JSON -----` block is optional to paste —
-   the one-line 🔒校验 is enough proof.)
+2. **FORCED OUTPUT — the whole 报告块 is mandatory, verbatim.** Everything between
+   `╔═══╗` and `╚═══╝` MUST appear — do NOT compress the 面板表 into prose, drop rows,
+   or omit 合并结论/建议. Narrate AROUND it, never instead of it. (Text can't self-
+   certify: a proof anchor can be forwarded fabricated too. Real trust comes from the
+   harness actually running the tool + the user spot-checking against reality.)
 3. **Always end with a risk line.** 技术分析 not 投资建议; every scenario carries a
    stop-loss + control-leverage note. A股 must also flag **T+1 & 涨跌停板**.
 4. **Reply in the user's language** (中文/日本語 — never English).
