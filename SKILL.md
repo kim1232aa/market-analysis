@@ -27,9 +27,12 @@ every number comes from the fetch script; failed sources are reported, never inv
    `HTTPS_PROXY`. Just run the script.
 1. **NEVER write a number the script didn't output.** If `errors[]` is non-empty,
    say which source failed. Scripts auto-fall back across sources; don't fabricate.
-2. **FORCED OUTPUT — the whole 报告块 is mandatory, verbatim.** Everything between
-   `╔═══ 报告块 ═══╗` and `╚═══ 报告块结束 ═══╝` MUST appear in your reply. Do NOT
-   compress the 面板表 into prose or drop rows; keep 合并结论/建议. Narrate AROUND it.
+2. **FORCED OUTPUT + PROOF-OF-RUN.** The whole 报告块 (between `╔═══╗` and `╚═══╝`)
+   MUST appear verbatim — do NOT compress the 面板表 into prose, drop rows, or omit
+   合并结论/建议. **AND you MUST also paste the script's `----- JSON -----` block as
+   proof you actually ran it.** A report WITHOUT that JSON anchor = you did NOT run
+   the script = a FABRICATED report — never deliver one, run the script instead.
+   (You cannot fabricate the exact JSON; that is exactly why it is required.)
 3. **Always end with a risk line.** 技术分析 not 投资建议; every scenario carries a
    stop-loss + control-leverage note. A股 must also flag **T+1 & 涨跌停板**.
 4. **Reply in the user's language** (中文/日本語 — never English).
