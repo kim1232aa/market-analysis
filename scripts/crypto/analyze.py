@@ -116,11 +116,13 @@ if len(frs) >= 2:
     print(f"  乖离 {sprd:.4f}%" + ("（三所一致·情绪统一）" if sprd < 0.01 else "（存在乖离·关注套利/分歧）"))
 
 # 关键位 + ATR止损 + 情景剧本
+scenarios_shown = False
 if levels:
     sh30, sl30 = levels["swing_high_30"], levels["swing_low_30"]
     sh12, sl12 = levels["swing_high_12"], levels["swing_low_12"]
     atrv = levels.get("atr14") or 0
     if None not in (sh30, sl30, sh12, sl12) and pv:
+        scenarios_shown = True
         nd = 0 if pv > 100 else 2
         def q(x): return f"{x:.{nd}f}"
         u = atrv if atrv > 0 else max((sh30 - sl30) * 0.1, pv * 0.002)   # 止损单位=ATR
@@ -186,6 +188,12 @@ if levels:
                 print(f"- **注意**：{zhuli}而散户拥挤多 → 主力散户背离,偏空,警惕多头踩踏")
             elif gl and tp and gl.get("ratio") is not None and tp.get("ratio") is not None and tp["ratio"] > 1.1 and gl["ratio"] > 1.3:
                 print(f"- **注意**：{zhuli}但散户也拥挤多 → 跟主力做多,同时把散户止损位当踩踏触发,两手准备")
+if not scenarios_shown:
+    # levels/swing数据缺失时, 上面整段(关键位/情景/总开关/合并结论/建议)都不会打印 --
+    # 必须在这里显式说明原因, 不能让读者(人或agent)看见报告块突然少一大截却不知道为什么。
+    why = "OKX确认K线结构不足(见上方数据质量行)" if not levels else "现价或swing high/low计算失败"
+    print(f"\n**关键位/情景剧本/建议：不可用**（原因：{why}）。以上面板表中已成功获取的指标仍如实反映当前数据，"
+          f"仅缺结构相关的进出场情景，不要凭其他指标编一个方向性建议顶替。")
 print("\n⚠️ 非投资建议·5M高噪音·务必带止损控杠杆。位与R:R为结构自动测算(R:R>1:6多因近端阻力太贴,实盘目标宜保守)。")
 print("╚═══ 报告块结束 · 以上须完整输出,尤其【面板表】与【合并结论/建议】不可省略 ═══╝")
 
