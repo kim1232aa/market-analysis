@@ -29,6 +29,7 @@ Both output a forced, ready-to-paste 报告块 with 机械评分 + 情景剧本(
 | `scan.py ashare [N]` | A股: 全市场龙虎榜×主力资金流找强势股 |
 | `scan.py crypto <SYMS> [BAR]` | 加密: watchlist按机械评分排名 |
 | `crypto/alert.py SYM SUP RES` | 加密触发位监控 (配 /loop) |
+| `crypto/backtest.py` · `ashare/backtest.py` | 本地OHLC决策日志回测(次K开盘价成交,无未来函数;独立执行层实验,非实时分析一部分) |
 | `crypto/` · `ashare/` | 两域各自的 core + analyze (被分发器调用) |
 
 - **Python stdlib only** — no deps, no API keys. Multi-source auto-fallback per domain.
@@ -53,8 +54,10 @@ Restart the agent after install. Or just run the scripts directly — no harness
 > Supersedes the separate `crypto-perp-analysis` and `ashare-analysis` skills (merged here).
 
 ## Disclaimer
-技术分析, **非投资建议**。加密低时间级别噪音大；**A股 T+1 & 涨跌停板**有实际约束。务必带止损、控制仓位。
-数据为实时快照，随时变动。R:R 为结构测算，非承诺胜率。
+技术分析, **非投资建议**——脚本不会自动下单，这是工具输出层面的定位，不是禁止使用者(人或agent)在被
+直接问到时给出自己的判断。加密低时间级别噪音大；**A股 T+1 & 涨跌停板**有实际约束。务必带止损、控制仓位。
+数据为实时快照，随时变动。R:R 为结构测算，非承诺胜率。核心数据缺失时 `建议(主策略)` 会显示
+`NO_TRADE·数据不足` 而不是编一个方向。
 
 ## License
 MIT
