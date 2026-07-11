@@ -340,12 +340,17 @@ def bias_emoji(s):
     return "中性➖"
 
 def _t_lhb(info):
+    # EXPLAIN is the exchange's own seat-type description, not an independently
+    # verified investor-identity feed -- a "机构" substring match is real text
+    # from the source, but treating it as a confirmed institutional identity
+    # (and scoring it higher than a plain net-buy) overclaims what we fetched.
+    # Keep the raw fact visible; score net-buy/sell direction only.
     if not info or not info.get("on_list"): return None
     net, detail = info.get("net_amt"), info.get("detail") or ""
-    who = "机构" if "机构" in detail else "游资"
-    if net and net > 0: return (f"龙虎榜净买{net/1e8:+.2f}亿·{who}买", 1.2 if who == "机构" else 0.8)
-    if net and net < 0: return (f"龙虎榜净卖{net/1e8:+.2f}亿·{who}卖", -1.2 if who == "机构" else -0.8)
-    return (f"龙虎榜上榜·{who}", 0)
+    seat_note = "说明含机构字样(未核验身份)" if "机构" in detail else "席位属性未核验"
+    if net and net > 0: return (f"龙虎榜净买{net/1e8:+.2f}亿·{seat_note}", 0.8)
+    if net and net < 0: return (f"龙虎榜净卖{net/1e8:+.2f}亿·{seat_note}", -0.8)
+    return (f"龙虎榜上榜·{seat_note}", 0)
 
 def signal_rows(rt, tech, ff_today, ff5, lhb=None, lhb_today=False):
     amount = rt.get("amount")
@@ -371,3 +376,49 @@ def signal_rows(rt, tech, ff_today, ff5, lhb=None, lhb_today=False):
     else:             bias = "偏空"
     return rows, round(total, 2), bias
 def _fmt_price(p): return "—" if p is None else f"{p:.2f}"
+
+# ---------- output policy (pure helpers; no network) ----------
+# Confirmation/risk-presentation profiles, mirroring scripts/crypto/perp_core.py.
+# They only change how much confirmation is asked for in candidate scenarios;
+# they never turn a partial data set into a trading instruction.
+PROFILES = {
+    "conservative": {"label": "保守", "confirmed_closes": 2,
+                      "note": "仍需日线收盘确认，并检查多周期方向与止损距离后再考虑"},
+    "balanced":     {"label": "均衡", "confirmed_closes": 1,
+                      "note": "回踩或突破均可列入候选，先确认触发与可承受止损"},
+    "active":       {"label": "积极", "confirmed_closes": 1,
+                      "note": "可更早跟踪候选情景，但仍以明确触发和止损为前提，不追封板"},
+}
+
+def profile_config(name):
+    key = (name or "balanced").lower()
+    if key not in PROFILES:
+        raise ValueError(f"unknown profile {name!r}; choose one of {', '.join(PROFILES)}")
+    return {"name": key, **PROFILES[key]}
+
+def assess_data_quality(rt, tech, mtf, ff, errors=None, lhb=None):
+    """Grade whether there is enough live evidence for a directional call.
+
+    `dir=None` in an mtf leg means that timeframe's data/indicator history is
+    unavailable -- deliberately different from `dir=0` (usable but neutral). A
+    missing price/日K/任一多周期腿/主力资金流 produces status="NO_TRADE": the
+    report block still shows whatever numbers ARE available, but 建议(主策略)
+    must not manufacture a directional call out of a partial picture.
+    """
+    core_missing = []
+    if not rt or rt.get("price") is None:
+        core_missing.append("东财/腾讯实时行情")
+    if not tech or tech.get("rsi14") is None:
+        core_missing.append("日K技术指标(需≥15根)")
+    missing_tfs = [label for label, direction, _ in (mtf or []) if direction is None]
+    core_missing.extend(f"{label}周期" for label in missing_tfs)
+    if ff is None:
+        core_missing.append("主力资金流(东财)")
+
+    optional_missing = []
+    if lhb is None:
+        optional_missing.append("龙虎榜")
+
+    status = "NO_TRADE" if core_missing else ("CAUTION" if optional_missing else "READY")
+    return {"status": status, "core_missing": core_missing, "optional_missing": optional_missing,
+            "error_count": len(errors or []), "missing_timeframes": missing_tfs}

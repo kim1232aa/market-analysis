@@ -50,25 +50,29 @@ deriv   = pc.bn_derivs(SYM, PERIOD, errors)
 depth   = pc.okx_depth_imbalance(SYM, errors)
 byb_fr  = pc.bybit_funding(SYM, errors)
 
-# ---- Multi-timeframe resonance ----
+# ---- Multi-timeframe resonance (confirmed/closed candles only) ----
 mtf = []
 for tf in MTF_LADDER:
     c = pc.okx_candles(SYM, tf, 60, errors)
-    if not c:
+    if not c or len(c["closes"]) < 30:
         mtf.append((tf, None, None, None)); continue
-    cl = c["closes"]; e9 = pc.ema(cl[-30:], 9); e21 = pc.ema(cl[-30:], 21); r = pc.rsi(cl)
+    cl = c["closes"]; e9 = pc.ema(cl, 9); e21 = pc.ema(cl, 21); r = pc.rsi(cl)
     d = 1 if (cl[-1] > e9 > e21) else -1 if (cl[-1] < e9 < e21) else 0
     mtf.append((tf, d, r, cl[-1]))
 dirs = [d for _, d, _, _ in mtf if d is not None]
 res_sum = sum(dirs)
-if dirs and all(d > 0 for d in dirs):   resonance = "🟢多头共振(各周期同向向上·高信心)"
-elif dirs and all(d < 0 for d in dirs): resonance = "🔴空头共振(各周期同向向下·高信心)"
+if len(dirs) < len(MTF_LADDER):
+    resonance = f"⚪数据不完整·不判定共振(缺{len(MTF_LADDER)-len(dirs)}个周期)"
+elif all(d > 0 for d in dirs):   resonance = "🟢多头共振(各周期同向向上·高信心)"
+elif all(d < 0 for d in dirs): resonance = "🔴空头共振(各周期同向向下·高信心)"
 elif res_sum > 0:  resonance = "偏多但未完全共振(存在分歧)"
 elif res_sum < 0:  resonance = "偏空但未完全共振(存在分歧)"
 else:              resonance = "多周期分歧·区间/转折(低信心,轻仓)"
 
 pv = price["last"] if price else (levels["recent_closes"][-1] if levels else None)
 rows, total, bias = pc.signal_rows(pv, levels, deriv, depth)
+quality = pc.assess_data_quality(price, levels, deriv, mtf, errors=errors, depth=depth,
+                                  okx_funding=okx_fr, bybit_funding_rate=byb_fr)
 
 # ---------------- render ----------------
 g = pc._fmt
@@ -78,11 +82,15 @@ print(f"===== {SYM}/USDT PERP · {BAR} · DATA REPORT =====")
 if price:
     print(f"现价 {g(price['last'])} | 24h {g(price['chg24h_pct'])}% | 高 {g(price['high24h'])} 低 {g(price['low24h'])}")
 if levels:
+    meta = levels.get("candle_meta", {})
+    print(f"结构仅用已收盘K：{levels['candles']}根 | 本次忽略未收盘K {meta.get('dropped_unconfirmed', 0)} 根")
     print(f"RSI14 {g(levels['rsi14'],1)} | ATR14 {g(levels['atr14'])} | 背离 {levels['divergence'] or '无'}")
 
 print("\n╔═══════ 报告块 · 必须原样完整输出 (禁止改写成散文 / 禁止删表删行) ═══════╗")
 if price:
     print(f"**{SYM}/USDT 永续 · {BAR} · 实时快照**  现价 {g(price['last'])} | 24h {g(price['chg24h_pct'])}% | 高 {g(price['high24h'])} 低 {g(price['low24h'])}")
+print(f"**数据质量：{quality['status']}**" + (f"（核心缺失：{'、'.join(quality['core_missing'])}）" if quality["core_missing"] else
+      (f"（辅助缺失：{'、'.join(quality['optional_missing'])}）" if quality["optional_missing"] else "")))
 
 # 多周期共振
 print(f"\n**多周期共振：{resonance}**")
@@ -146,28 +154,38 @@ if levels:
         pos = (pv - sl30) / rng if rng > 0 else 0.5
         near_res = pos > 0.8 or newhigh
         near_sup = pos < 0.2 or newlow
-        zhuli = ("主力净多" if tp and tp["ratio"] > 1.1 else "主力净空" if tp and tp["ratio"] < 0.9 else "主力中性")
+        zhuli = ("主力净多" if tp and tp.get("ratio") is not None and tp["ratio"] > 1.1
+                 else "主力净空" if tp and tp.get("ratio") is not None and tp["ratio"] < 0.9 else "主力中性")
         print(f"\n**合并结论：{bias}**", end="")
         if bull: print(" ｜ 多方：" + "；".join(f"{n}({d})" for n, _, d, _ in bull), end="")
         if bear: print(" ｜ 空方/风险：" + "；".join(f"{n}({d})" for n, _, d, _ in bear), end="")
         print()
-        if bias in ("偏多", "中性偏多"):
-            rec = (f"🟢别追高·等回踩 {q(sl12)} 低多 或 站稳 {q(sh30)} 突破多" if near_res
-                   else f"🟢首选低多：回踩 {q(sl12)} 进，止损 {q(sl12-1.2*u)}，目标 {q(sh12)}→{q(sh30)}")
-        elif bias in ("偏空", "中性偏空"):
-            rec = (f"🔴别追空·等反弹到 {q(sh12)}/{q(sh30)} 做空 或 收破 {q(sl12)} 破位空" if near_sup
-                   else f"🔴首选反弹空/破位空：收破 {q(sl12)} 进空，止损 {q(sl12+1.2*u)}，目标 {q(sl12-rng)}")
+        if quality["status"] == "NO_TRADE":
+            # Core evidence (price/结构/多周期/主要衍生品) is missing -- do not
+            # synthesize a directional 建议 out of a partial picture. Show the
+            # candidate levels above (they're real structure numbers) but stop
+            # short of a call.
+            print(f"- **建议(主策略)**：NO_TRADE·数据不足（缺：{'、'.join(quality['core_missing'])}），不给出方向性建议；以上关键位/情景仅供参考,补齐数据后重新运行。")
         else:
-            rec = f"➖区间震荡：{q(sl12)}~{q(sh30)} 高抛低吸，破位再跟"
-        print(f"- **建议(主策略)**：{rec}")
-        if gl and gl["ratio"] > 1.3:
-            print(f"- **高胜率(踩踏)**：5m收破 {q(sl12)} → 散户拥挤多(比{g(gl['ratio'])})止损踩踏，快速下杀 {q(sl12-rng)}")
-        elif gl and gl["ratio"] < 0.77:
-            print(f"- **高胜率(逼空)**：站上 {q(sh30)} → 散户拥挤空(比{g(gl['ratio'])})被逼空，快速上冲 {q(sh30+rng)}")
-        if gl and tp and tp["ratio"] < 0.9 and gl["ratio"] > 1.3:
-            print(f"- **注意**：{zhuli}而散户拥挤多 → 主力散户背离,偏空,警惕多头踩踏")
-        elif gl and tp and tp["ratio"] > 1.1 and gl["ratio"] > 1.3:
-            print(f"- **注意**：{zhuli}但散户也拥挤多 → 跟主力做多,同时把散户止损位当踩踏触发,两手准备")
+            if bias in ("偏多", "中性偏多"):
+                rec = (f"🟢别追高·等回踩 {q(sl12)} 低多 或 站稳 {q(sh30)} 突破多" if near_res
+                       else f"🟢首选低多：回踩 {q(sl12)} 进，止损 {q(sl12-1.2*u)}，目标 {q(sh12)}→{q(sh30)}")
+            elif bias in ("偏空", "中性偏空"):
+                rec = (f"🔴别追空·等反弹到 {q(sh12)}/{q(sh30)} 做空 或 收破 {q(sl12)} 破位空" if near_sup
+                       else f"🔴首选反弹空/破位空：收破 {q(sl12)} 进空，止损 {q(sl12+1.2*u)}，目标 {q(sl12-rng)}")
+            else:
+                rec = f"➖区间震荡：{q(sl12)}~{q(sh30)} 高抛低吸，破位再跟"
+            print(f"- **建议(主策略)**：{rec}")
+            if quality["status"] == "CAUTION":
+                print(f"- **注意(数据不全)**：辅助数据缺失（{'、'.join(quality['optional_missing'])}），以上建议基于核心数据,置信度略低。")
+            if gl and gl.get("ratio") is not None and gl["ratio"] > 1.3:
+                print(f"- **高胜率(踩踏)**：5m收破 {q(sl12)} → 散户拥挤多(比{g(gl['ratio'])})止损踩踏，快速下杀 {q(sl12-rng)}")
+            elif gl and gl.get("ratio") is not None and gl["ratio"] < 0.77:
+                print(f"- **高胜率(逼空)**：站上 {q(sh30)} → 散户拥挤空(比{g(gl['ratio'])})被逼空，快速上冲 {q(sh30+rng)}")
+            if gl and tp and gl.get("ratio") is not None and tp.get("ratio") is not None and tp["ratio"] < 0.9 and gl["ratio"] > 1.3:
+                print(f"- **注意**：{zhuli}而散户拥挤多 → 主力散户背离,偏空,警惕多头踩踏")
+            elif gl and tp and gl.get("ratio") is not None and tp.get("ratio") is not None and tp["ratio"] > 1.1 and gl["ratio"] > 1.3:
+                print(f"- **注意**：{zhuli}但散户也拥挤多 → 跟主力做多,同时把散户止损位当踩踏触发,两手准备")
 print("\n⚠️ 非投资建议·5M高噪音·务必带止损控杠杆。位与R:R为结构自动测算(R:R>1:6多因近端阻力太贴,实盘目标宜保守)。")
 print("╚═══ 报告块结束 · 以上须完整输出,尤其【面板表】与【合并结论/建议】不可省略 ═══╝")
 
@@ -178,6 +196,7 @@ if errors:
 OUT = {"symbol": SYM, "bar": BAR, "price": price, "structure": levels, "okx_funding": okx_fr,
        "bybit_funding": byb_fr, "derivatives": deriv, "depth": depth,
        "mtf": [{"tf": t, "dir": d, "rsi": r, "close": c} for t, d, r, c in mtf],
-       "resonance": resonance, "bias_score": total, "bias": bias, "errors": errors}
+       "resonance": resonance, "bias_score": total, "bias": bias,
+       "data_quality": quality, "errors": errors}
 print("\n----- JSON -----")
 print(json.dumps(OUT, ensure_ascii=False, separators=(",", ":")))
